@@ -133,7 +133,7 @@
     </span>
   </footer>
 </div>
-<input type="file" id="importfile" accept="application/json,.json" class="hide" />
+<input type="file" id="importfile" accept="application/json,.json,text/csv,.csv" class="hide" />
 
 <script>
 "use strict";
@@ -152,7 +152,8 @@ var ui = {
   progOpen: false,
   logger: null,        // {date, sets:[{reps,weight}]} when open
   editingId: null,     // session id being edited
-  edit: null           // {date, sets:[...]}
+  edit: null,          // {date, sets:[...]}
+  pendingImport: null  // staged import awaiting in-page confirm
 };
 
 /* ---------- storage ---------- */
@@ -273,15 +274,118 @@ function download(fn, text, mime){
   var a=document.createElement("a"); a.href=url; a.download=fn; document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
-function importJSON(text){
+function parseJSONData(text){
+  var d=JSON.parse(text); // throws -> caught by stageImport
+  if(!d || typeof d!=="object" || !Array.isArray(d.exercises)) throw new Error("bad json");
+  return {
+    exercises:d.exercises,
+    sessions:d.sessions||{},
+    settings:Object.assign({metric:"progression",maWindow:5}, d.settings||{})
+  };
+}
+
+// RFC-4180-ish parser: handles quoted fields, escaped quotes, commas/newlines in quotes, CRLF
+function parseCSV(text){
+  var rows=[], row=[], field="", i=0, inQ=false, c;
+  text=text.replace(/^﻿/,""); // strip BOM
+  while(i<text.length){
+    c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i+=2; continue; } inQ=false; i++; continue; }
+      field+=c; i++; continue;
+    }
+    if(c==='"'){ inQ=true; i++; continue; }
+    if(c===','){ row.push(field); field=""; i++; continue; }
+    if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=""; i++; continue; }
+    if(c==='\r'){ i++; continue; }
+    field+=c; i++;
+  }
+  if(field.length||row.length){ row.push(field); rows.push(row); }
+  return rows.filter(function(r){ return r.some(function(x){return String(x).trim()!=="";}); });
+}
+
+function parseCSVData(text){
+  var rows=parseCSV(text);
+  if(rows.length<2) throw new Error("empty csv");
+  var head=rows[0].map(function(h){return String(h).trim().toLowerCase();});
+  var col=function(name){ return head.indexOf(name); };
+  var iL=col("lift"), iDay=col("day"), iDate=col("date"), iSet=col("set"), iR=col("reps"), iW=col("weight");
+  if(iL<0||iDate<0||iR<0||iW<0) throw new Error("missing columns");
+
+  var byLift={}, order=[];
+  for(var r=1;r<rows.length;r++){
+    var row=rows[r];
+    var name=String(row[iL]||"").trim(); if(!name) continue;
+    var day=iDay>=0?String(row[iDay]||"").trim():"";
+    var date=String(row[iDate]||"").trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    var reps=num(row[iR]), weight=num(row[iW]); if(reps<=0||weight<=0) continue;
+    var setNo=iSet>=0?num(row[iSet]):0;
+
+    if(!byLift[name]){ byLift[name]={day:day, dates:{}}; order.push(name); }
+    if(day && !byLift[name].day) byLift[name].day=day;
+    var sess=byLift[name].dates;
+    if(!sess[date]) sess[date]=[];
+    sess[date].push({ setNo:setNo, reps:reps, weight:weight });
+  }
+
+  var exercises=[], sessions={};
+  order.forEach(function(name){
+    var exId=uid();
+    exercises.push({ id:exId, name:name, day:byLift[name].day||"", createdAt:Date.now(), step:DEFAULT_STEP, ceiling:DEFAULT_CEILING });
+    var list=[];
+    Object.keys(byLift[name].dates).sort().forEach(function(date){
+      var sets=byLift[name].dates[date].slice().sort(function(a,b){return a.setNo-b.setNo;})
+        .map(function(x){return {reps:x.reps, weight:x.weight};});
+      if(sets.length) list.push({ id:uid(), date:date, sets:sets });
+    });
+    sessions[exId]=list;
+  });
+  if(!exercises.length) throw new Error("no rows");
+  return { exercises:exercises, sessions:sessions }; // no settings in CSV — keep current
+}
+
+function detectFormat(name, text){
+  var isCSV = /\.csv$/i.test(name||"") || (!/^\s*[\{\[]/.test(text) && /(^|\n)\s*lift\s*,/i.test(text.slice(0,200)));
+  return isCSV ? "CSV" : "JSON";
+}
+function countSessions(sessions){ var n=0; for(var k in sessions){ if(Object.prototype.hasOwnProperty.call(sessions,k)) n+=(sessions[k]||[]).length; } return n; }
+
+// Stage the file (parse + preview). No native dialogs — confirmation happens in-page.
+function stageImport(name, text){
+  var fmt=detectFormat(name,text);
   try{
-    var d=JSON.parse(text);
-    if(!d || typeof d!=="object" || !Array.isArray(d.exercises)) throw new Error("bad");
-    data.exercises=d.exercises; data.sessions=d.sessions||{};
-    data.settings=Object.assign({metric:"progression",maWindow:5}, d.settings||{});
-    ui.selectedId=(data.exercises[0]&&data.exercises[0].id)||null;
-    save(); render();
-  }catch(e){ alert("That file doesn't look like a Ramp backup. Import canceled."); }
+    var parsed = fmt==="CSV" ? parseCSVData(text) : parseJSONData(text);
+    ui.pendingImport = { format:fmt, data:parsed, lifts:parsed.exercises.length, sessions:countSessions(parsed.sessions), error:null };
+  }catch(e){
+    ui.pendingImport = { format:fmt, error:(fmt==="CSV"
+      ? "Couldn't read that CSV. It needs the columns this app exports: lift, day, date, set, reps, weight."
+      : "That file isn't a valid Ramp JSON backup.") };
+  }
+  render();
+}
+function commitImport(){
+  var p=ui.pendingImport; if(!p||p.error) return;
+  data.exercises=p.data.exercises;
+  data.sessions=p.data.sessions;
+  if(p.data.settings) data.settings=p.data.settings; // JSON carries settings; CSV keeps current
+  ui.selectedId=(data.exercises[0]&&data.exercises[0].id)||null;
+  ui.pendingImport=null;
+  save(); render();
+  setSaveState("Imported · "+p.lifts+" lift"+(p.lifts===1?"":"s"), false);
+}
+function importBannerHTML(){
+  var p=ui.pendingImport; if(!p) return "";
+  if(p.error){
+    return '<div class="banner" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">'+
+      '<span>'+esc(p.error)+'</span>'+
+      '<button class="btn ghost sm" data-action="import-cancel" style="border:1px solid var(--line);white-space:nowrap;">Dismiss</button></div>';
+  }
+  var note = p.format==="CSV" ? ' <span class="cap">CSV doesn’t carry per-lift step/ceiling — those reset to defaults.</span>' : '';
+  return '<div class="banner" style="background:var(--surface);border-color:var(--line2);">'+
+    '<div style="margin-bottom:8px;">Ready to import <b>'+p.lifts+'</b> lift'+(p.lifts===1?'':'s')+' / <b>'+p.sessions+'</b> session'+(p.sessions===1?'':'s')+' from this '+p.format+' file. This replaces everything currently in the app.'+note+'</div>'+
+    '<div class="row" style="gap:8px;">'+
+    '<button class="btn accent sm" data-action="import-commit">Replace &amp; import</button>'+
+    '<button class="btn ghost sm" data-action="import-cancel" style="border:1px solid var(--line);">Cancel</button></div></div>';
 }
 
 /* ---------- draft sync (uncontrolled inputs) ---------- */
@@ -362,7 +466,7 @@ function render(){
     body = exerciseHTML(ex);
   }
 
-  app.innerHTML = selHTML + body;
+  app.innerHTML = importBannerHTML() + selHTML + body;
 
   // footer caption
   var mw=data.settings.maWindow;
@@ -669,14 +773,17 @@ document.addEventListener("click", function(e){
 
     case "export-csv": download("lift-tracker.csv", buildCSV(), "text/csv"); break;
     case "export-json": download("lift-tracker.json", JSON.stringify(data,null,2), "application/json"); break;
-    case "import": document.getElementById("importfile").click(); break;
+    case "import": ui.pendingImport=null; document.getElementById("importfile").click(); break;
+    case "import-commit": commitImport(); break;
+    case "import-cancel": ui.pendingImport=null; render(); break;
   }
 });
 
 document.getElementById("importfile").addEventListener("change", function(){
   var f=this.files[0]; if(!f) return;
+  var nm=f.name;
   var r=new FileReader();
-  r.onload=function(){ importJSON(r.result); };
+  r.onload=function(){ stageImport(nm, r.result); };
   r.readAsText(f);
   this.value="";
 });
