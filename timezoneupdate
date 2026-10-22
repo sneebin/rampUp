@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f5f5f4" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="The Ramp" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231c1917'/%3E%3Cpath d='M30 130 L75 95 L110 70 L150 45' stroke='%23ea580c' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<title>The Ramp — Lift Tracker</title>
+<style>
+  :root{
+    --bg:#f5f5f4; --surface:#ffffff; --ink:#1c1917; --muted:#78716c;
+    --faint:#a8a29e; --line:#e7e5e4; --line2:#d6d3d1;
+    --accent:#ea580c; --accent-d:#c2410c; --accent-bg:#fff7ed; --accent-bd:#fdba74;
+    --chip:#e7e5e4;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  .wrap{max-width:680px;margin:0 auto;padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 32px);}
+  header.top{padding-top:24px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  h1{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:0;}
+  .sub{font-size:13px;color:var(--muted);margin-top:2px;}
+  .savestate{font-size:11px;color:var(--faint);white-space:nowrap;text-align:right;padding-top:4px;}
+  .savestate.err{color:var(--accent-d);font-weight:600;}
+  .banner{margin-bottom:14px;border-radius:10px;padding:10px 12px;font-size:13px;
+    background:var(--accent-bg);border:1px solid var(--accent-bd);color:#7c2d12;}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .mb16{margin-bottom:16px;} .mb12{margin-bottom:12px;} .mb6{margin-bottom:6px;}
+  select,input{font:inherit;}
+  .selwrap{position:relative;}
+  select.lift{appearance:none;-webkit-appearance:none;background:var(--surface);
+    border:1px solid var(--line2);border-radius:10px;padding:9px 34px 9px 12px;
+    font-size:14px;font-weight:600;color:var(--ink);min-width:200px;max-width:100%;}
+  .selwrap .chev{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+    width:14px;height:14px;pointer-events:none;color:var(--faint);}
+  .ti{padding:9px 12px;border:1px solid var(--line2);border-radius:10px;font-size:14px;background:var(--surface);}
+  .ti:focus,select:focus{outline:none;border-color:var(--accent);}
+  .btn{border:none;border-radius:10px;padding:9px 12px;font-size:14px;font-weight:600;cursor:pointer;}
+  .btn.dark{background:var(--ink);color:#fafaf9;}
+  .btn.accent{background:var(--accent);color:#fff;}
+  .btn.ghost{background:transparent;color:var(--muted);}
+  .btn.dash{background:transparent;color:var(--accent-d);border:1px dashed var(--accent-bd);}
+  .btn.sm{padding:6px 10px;font-size:12px;}
+  .btn.block{display:block;width:100%;padding:14px;border-radius:12px;font-size:15px;}
+  .title-btn{background:none;border:none;padding:0;display:inline-flex;align-items:center;gap:6px;
+    font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--ink);cursor:pointer;margin-bottom:8px;}
+  .title-btn svg{width:14px;height:14px;color:var(--line2);}
+  .title-edit{font-size:20px;font-weight:800;letter-spacing:-.02em;border:1px solid var(--accent);
+    border-radius:8px;padding:4px 8px;margin-bottom:8px;width:100%;max-width:340px;background:var(--surface);}
+  .daytag{background:none;border:none;padding:0;margin:0 0 12px;cursor:pointer;font-size:12px;color:var(--muted);}
+  .chip{display:inline-block;background:var(--chip);color:var(--muted);border-radius:999px;padding:2px 10px;font-weight:600;}
+  .assign{color:var(--accent-d);}
+  .headline{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px;}
+  .bignum{font-size:38px;font-weight:800;letter-spacing:-.02em;line-height:1;}
+  .unit{font-size:13px;color:var(--muted);margin-left:6px;}
+  .metaline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;}
+  .badge{border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;}
+  .badge.up{background:var(--accent-bg);color:#9a3412;}
+  .badge.neu{background:var(--chip);color:var(--muted);}
+  .delta{font-size:12px;color:var(--muted);}
+  .seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:2px;}
+  .seg button{border:none;background:none;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;}
+  .seg button.on{background:var(--ink);color:#fafaf9;}
+  .right-col{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+  .linkbtn{background:none;border:none;color:var(--faint);font-size:12px;cursor:pointer;padding:0;}
+  .linkbtn:hover{color:var(--accent-d);}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;}
+  .winrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .winrow .lbl{font-size:12px;color:var(--faint);}
+  .chartwrap{width:100%;}
+  .chartwrap svg{width:100%;height:200px;display:block;}
+  .legend{display:flex;gap:16px;margin-top:8px;font-size:12px;color:var(--faint);}
+  .legend .sw{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:6px;}
+  .empty{border:1px dashed var(--line2);border-radius:14px;background:#fafaf9;padding:40px 20px;text-align:center;}
+  .empty p{margin:4px 0;}
+  .sug{border-radius:14px;border:1px solid var(--line);background:var(--surface);padding:12px 14px;margin-bottom:12px;}
+  .sug.jump{background:var(--accent-bg);border-color:var(--accent-bd);}
+  .sug .lab{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);}
+  .sug .jp{font-size:11px;font-weight:700;color:var(--accent-d);margin-left:8px;}
+  .sug p{margin:3px 0 0;font-size:14px;}
+  .setgrid{display:grid;grid-template-columns:26px 1fr 1fr 28px;gap:8px;align-items:center;}
+  .setgrid .h{font-size:11px;color:var(--faint);}
+  .setnum{font-size:14px;color:var(--muted);text-align:center;}
+  .setin{padding:9px 10px;border:1px solid var(--line2);border-radius:9px;font-size:14px;width:100%;background:var(--surface);}
+  .xbtn{background:none;border:none;color:var(--line2);font-size:20px;line-height:1;cursor:pointer;padding:0;}
+  .xbtn:hover{color:var(--accent);}
+  .actbtns{display:flex;gap:6px;align-items:center;}
+  .actbtns .ic{background:none;border:none;color:var(--faint);cursor:pointer;padding:2px;}
+  .actbtns .ic svg{width:15px;height:15px;display:block;}
+  .actbtns .ic:hover{color:var(--accent-d);}
+  .actrow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+  .actrow .date{font-size:12px;color:var(--faint);width:48px;flex:none;}
+  .actrow .summary{flex:1;font-size:14px;color:#44403c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .actrow .val{font-size:14px;font-weight:700;flex:none;}
+  .actrow .val .s{font-size:11px;font-weight:400;color:var(--faint);margin-left:3px;}
+  .editbox{border:1px solid var(--accent-bd);background:var(--accent-bg);border-radius:10px;padding:12px;}
+  .editbox .erow{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .sectitle{font-size:14px;font-weight:700;color:#44403c;margin:0 0 8px;}
+  footer{margin-top:36px;padding-top:14px;border-top:1px solid var(--line);
+    display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center;}
+  .cap{font-size:11px;color:var(--faint);}
+  .label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
+  .prog{background:var(--accent-bg);border:1px solid var(--accent-bd);border-radius:10px;padding:12px;margin-bottom:12px;}
+  .prog .note{font-size:12px;color:var(--muted);margin-top:8px;}
+  .progline{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:12px;margin-top:-2px;}
+  .num28{width:84px;}
+  .hide{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>The Ramp</h1>
+      <div class="sub">Log every set. Watch the running average climb.</div>
+    </div>
+    <div id="savestate" class="savestate"></div>
+  </header>
+  <div id="storagewarn"></div>
+  <div id="app"></div>
+  <footer>
+    <span id="wincap" class="cap"></span>
+    <span class="row">
+      <span class="cap">backup</span>
+      <button class="btn ghost sm" data-action="export-csv" style="border:1px solid var(--line);">CSV</button>
+      <button class="btn ghost sm" data-action="export-json" style="border:1px solid var(--line);">JSON</button>
+      <button class="btn ghost sm" data-action="import" style="border:1px solid var(--line);">Import</button>
+    </span>
+  </footer>
+</div>
+<input type="file" id="importfile" accept="application/json,.json" class="hide" />
+
+<script>
+"use strict";
+
+/* ---------- constants ---------- */
+var KEY = "lift-tracker-v1";
+var DEFAULT_STEP = 5, DEFAULT_CEILING = 14, RESET_REPS = 5;
+
+/* ---------- state ---------- */
+var data = { exercises: [], sessions: {}, settings: { metric: "progression", maWindow: 5 } };
+var ui = {
+  selectedId: null,
+  adding: false,
+  renaming: false,
+  editingDay: false,
+  progOpen: false,
+  logger: null,        // {date, sets:[{reps,weight}]} when open
+  editingId: null,     // session id being edited
+  edit: null           // {date, sets:[...]}
+};
+
+/* ---------- storage ---------- */
+function storageOK(){
+  try { var k="__t"; localStorage.setItem(k,"1"); localStorage.removeItem(k); return true; }
+  catch(e){ return false; }
+}
+function load(){
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw){
+      var d = JSON.parse(raw);
+      data.exercises = d.exercises || [];
+      data.sessions = d.sessions || {};
+      data.settings = Object.assign({ metric:"progression", maWindow:5 }, d.settings || {});
+    }
+  } catch(e){}
+  ui.selectedId = (data.exercises[0] && data.exercises[0].id) || null;
+}
+function save(){
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+    setSaveState("Saved \u00b7 " + new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), false);
+  } catch(e){
+    setSaveState("Not saved \u2014 storage blocked", true);
+  }
+}
+function setSaveState(txt, err){
+  var el = document.getElementById("savestate");
+  el.textContent = txt;
+  el.className = "savestate" + (err ? " err" : "");
+}
+
+/* ---------- helpers ---------- */
+function uid(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now()+"-"+Math.random().toString(36).slice(2)); }
+function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function num(v){ var n = parseFloat(v); return isFinite(n) ? n : 0; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]; }); }
+function fmt(n, d){ d = d||0; return Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function fmtDate(iso){ var dt = new Date(iso+"T00:00:00"); return dt.toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+function setsSummary(sets){ return sets.filter(function(s){return num(s.reps)>0;}).map(function(s){return num(s.reps)+"\u00d7"+num(s.weight);}).join("  "); }
+
+function topWorkingSet(s){
+  var best=null;
+  s.sets.forEach(function(set){
+    var w=num(set.weight), r=num(set.reps);
+    if (w<=0||r<=0) return;
+    if (!best || w>best.weight || (w===best.weight && r>best.reps)) best={weight:w,reps:r};
+  });
+  return best;
+}
+function mVolume(s){ return s.sets.reduce(function(a,set){return a+num(set.reps)*num(set.weight);},0); }
+function mE1RM(s){ return s.sets.reduce(function(b,set){var r=num(set.reps),w=num(set.weight); if(r<=0||w<=0)return b; return Math.max(b, w*(1+r/30));},0); }
+function mAvg(s){ var v=s.sets.filter(function(x){return num(x.weight)>0;}); if(!v.length)return 0; return v.reduce(function(a,x){return a+num(x.weight);},0)/v.length; }
+function mProg(s,ex){ var t=topWorkingSet(s); if(!t)return 0; var step=(ex&&ex.step)||DEFAULT_STEP, ceil=(ex&&ex.ceiling)||DEFAULT_CEILING; return t.weight + (Math.min(t.reps,ceil)/ceil)*step; }
+
+var METRICS = {
+  progression: { label:"Progression", short:"prog", unit:"", fn:mProg,  round:1, zero:false },
+  volume:      { label:"Volume",      short:"vol",  unit:"lb", fn:mVolume, round:0, zero:true },
+  e1rm:        { label:"Top set e1RM",short:"e1RM", unit:"lb", fn:mE1RM,  round:1, zero:false },
+  avgwt:       { label:"Avg weight",  short:"avg",  unit:"lb", fn:mAvg,   round:1, zero:false }
+};
+var METRIC_ORDER = ["progression","volume","e1rm","avgwt"];
+
+function nextSuggestion(sessions, ex){
+  if(!sessions.length) return { kind:"start", text:"Log your first session to set a baseline." };
+  var t = topWorkingSet(sessions[sessions.length-1]);
+  if(!t) return { kind:"start", text:"Log a complete set to get a suggestion." };
+  var step=(ex.step||DEFAULT_STEP), ceil=(ex.ceiling||DEFAULT_CEILING);
+  if(t.reps>=ceil){
+    return { kind:"jump", weight:t.weight+step, reps:RESET_REPS,
+      text:"Ceiling reached at "+t.weight+" lb \u00d7 "+t.reps+". Add weight: try "+(t.weight+step)+" lb for ~"+RESET_REPS+" reps, then climb again." };
+  }
+  var target=t.reps+1, left=ceil-target;
+  return { kind:"climb", weight:t.weight, reps:target,
+    text:"Last: "+t.weight+" \u00d7 "+t.reps+". Aim for "+t.weight+" \u00d7 "+target+" today" +
+      (left>0 ? (" \u2014 "+left+" more rep"+(left===1?"":"s")+" to the jump.") : " \u2014 that's the ceiling, weight goes up next time.") };
+}
+
+/* ---------- data ops ---------- */
+function sortedSessions(exId){
+  var list = (data.sessions[exId]||[]).slice();
+  list.sort(function(a,b){ return a.date.localeCompare(b.date); });
+  return list;
+}
+function selectedEx(){ return data.exercises.filter(function(e){return e.id===ui.selectedId;})[0] || null; }
+function dayList(){ var set={}; data.exercises.forEach(function(e){ if(e.day&&e.day.trim()) set[e.day.trim()]=1; }); return Object.keys(set).sort(); }
+
+function addExercise(name, day){
+  name=(name||"").trim(); if(!name) return;
+  var ex={ id:uid(), name:name, day:(day||"").trim(), createdAt:Date.now(), step:DEFAULT_STEP, ceiling:DEFAULT_CEILING };
+  data.exercises.push(ex); ui.selectedId=ex.id; ui.adding=false; save();
+}
+function updateExercise(id, patch){ data.exercises=data.exercises.map(function(e){return e.id===id?Object.assign({},e,patch):e;}); save(); }
+function deleteExercise(id){
+  data.exercises=data.exercises.filter(function(e){return e.id!==id;});
+  delete data.sessions[id];
+  if(ui.selectedId===id) ui.selectedId=(data.exercises[0]&&data.exercises[0].id)||null;
+  save();
+}
+function addSession(exId, session){ data.sessions[exId]=(data.sessions[exId]||[]).concat([session]); save(); }
+function updateSession(exId, sid, patch){ data.sessions[exId]=(data.sessions[exId]||[]).map(function(s){return s.id===sid?Object.assign({},s,patch):s;}); save(); }
+function deleteSession(exId, sid){ data.sessions[exId]=(data.sessions[exId]||[]).filter(function(s){return s.id!==sid;}); save(); }
+
+/* ---------- export / import ---------- */
+function csvCell(v){ var s=String(v==null?"":v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
+function buildCSV(){
+  var rows=[["lift","day","date","set","reps","weight"]];
+  data.exercises.forEach(function(ex){
+    (data.sessions[ex.id]||[]).forEach(function(s){
+      s.sets.forEach(function(set,i){ rows.push([ex.name, ex.day||"", s.date, i+1, set.reps, set.weight]); });
+    });
+  });
+  return rows.map(function(r){return r.map(csvCell).join(",");}).join("\n");
+}
+function download(fn, text, mime){
+  var blob=new Blob([text],{type:mime}); var url=URL.createObjectURL(blob);
+  var a=document.createElement("a"); a.href=url; a.download=fn; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function importJSON(text){
+  try{
+    var d=JSON.parse(text);
+    if(!d || typeof d!=="object" || !Array.isArray(d.exercises)) throw new Error("bad");
+    data.exercises=d.exercises; data.sessions=d.sessions||{};
+    data.settings=Object.assign({metric:"progression",maWindow:5}, d.settings||{});
+    ui.selectedId=(data.exercises[0]&&data.exercises[0].id)||null;
+    save(); render();
+  }catch(e){ alert("That file doesn't look like a Ramp backup. Import canceled."); }
+}
+
+/* ---------- draft sync (uncontrolled inputs) ---------- */
+function syncDrafts(){
+  if(ui.logger){
+    var dt=document.getElementById("log-date"); if(dt) ui.logger.date=dt.value;
+    ui.logger.sets = readSetInputs("log");
+  }
+  if(ui.edit){
+    var ed=document.getElementById("edit-date"); if(ed) ui.edit.date=ed.value;
+    ui.edit.sets = readSetInputs("edit");
+  }
+}
+function readSetInputs(prefix){
+  var reps=document.querySelectorAll("."+prefix+"-rep");
+  var wts=document.querySelectorAll("."+prefix+"-wt");
+  var out=[];
+  for(var i=0;i<reps.length;i++){ out.push({ reps:reps[i].value, weight:(wts[i]?wts[i].value:"") }); }
+  return out.length?out:[{reps:"",weight:""}];
+}
+
+/* ---------- chart (hand-rolled SVG) ---------- */
+function chartSVG(series, M){
+  var n=series.length;
+  var W=600,H=200, L=46,R=12,T=10,B=24;
+  var pw=W-L-R, ph=H-T-B;
+  var lo, hi;
+  if(M.zero){ lo=0; hi=0; series.forEach(function(p){hi=Math.max(hi,p.value,p.ma);}); hi=hi||1; }
+  else {
+    lo=Infinity; hi=-Infinity;
+    series.forEach(function(p){ lo=Math.min(lo,p.value,p.ma); hi=Math.max(hi,p.value,p.ma); });
+    var pad=Math.max((hi-lo)*0.15, hi*0.02, 1); lo=Math.max(0,lo-pad); hi=hi+pad;
+  }
+  if(hi===lo){ hi=lo+1; }
+  function X(i){ return n===1 ? L+pw/2 : L + (i/(n-1))*pw; }
+  function Y(v){ return T + (1-(v-lo)/(hi-lo))*ph; }
+
+  var parts=[];
+  // gridlines + y labels (lo, mid, hi)
+  [lo,(lo+hi)/2,hi].forEach(function(v){
+    var y=Y(v);
+    parts.push('<line x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(W-R)+'" y2="'+y.toFixed(1)+'" stroke="#e7e5e4" stroke-width="1" stroke-dasharray="3 3"/>');
+    parts.push('<text x="'+(L-6)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="11" fill="#a8a29e">'+fmt(v, M.round>0?1:0)+'</text>');
+  });
+  // x labels (subset)
+  var step = n<=6 ? 1 : Math.ceil(n/5);
+  for(var i=0;i<n;i+=step){
+    parts.push('<text x="'+X(i).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="#a8a29e">'+esc(series[i].label)+'</text>');
+  }
+  if((n-1)%step!==0 && n>1){
+    parts.push('<text x="'+X(n-1).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="#a8a29e">'+esc(series[n-1].label)+'</text>');
+  }
+  function poly(key,color,w){
+    if(n===1){ return '<circle cx="'+X(0).toFixed(1)+'" cy="'+Y(series[0][key]).toFixed(1)+'" r="3.5" fill="'+color+'"/>'; }
+    var pts=series.map(function(p,i){return X(i).toFixed(1)+","+Y(p[key]).toFixed(1);}).join(" ");
+    var dots=series.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p[key]).toFixed(1)+'" r="2.5" fill="'+color+'"/>';}).join("");
+    return '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="'+w+'" stroke-linejoin="round" stroke-linecap="round"/>'+dots;
+  }
+  parts.push(poly("value","#d6d3d1",1.5));
+  parts.push(poly("ma","#ea580c",2.5));
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'+parts.join("")+'</svg>';
+}
+
+/* ---------- render ---------- */
+function render(){
+  var app=document.getElementById("app");
+  var exs=data.exercises;
+
+  // selector
+  var selHTML = selectorHTML(exs);
+
+  var body;
+  var ex = selectedEx();
+  if(!ex){
+    body = '<div class="empty"><p style="font-weight:600;color:#44403c;">No lifts yet.</p>'+
+      '<p class="cap" style="font-size:13px;color:var(--muted);">Add your first lift above \u2014 bench, rows, RDLs \u2014 then start logging sets.</p></div>';
+  } else {
+    body = exerciseHTML(ex);
+  }
+
+  app.innerHTML = selHTML + body;
+
+  // footer caption
+  var mw=data.settings.maWindow;
+  document.getElementById("wincap").textContent =
+    "running avg = " + (mw===0?"all-session":(mw+"-session")) + " moving average \u00b7 saved on this device";
+
+  wire();
+}
+
+function selectorHTML(exs){
+  if(ui.adding){
+    var dl = dayList().map(function(d){return '<option value="'+esc(d)+'">';}).join("");
+    return '<div class="row mb16">'+
+      '<input id="new-name" class="ti" placeholder="e.g. DB Bench Press" style="width:200px;max-width:60%;" autofocus />'+
+      '<input id="new-day" class="ti" list="daydl" placeholder="Day (e.g. Push)" style="width:150px;max-width:40%;" />'+
+      '<datalist id="daydl">'+dl+'</datalist>'+
+      '<button class="btn accent" data-action="add-submit">Add</button>'+
+      '<button class="btn ghost" data-action="add-cancel">Cancel</button>'+
+      '</div>';
+  }
+  var sel="";
+  if(exs.length){
+    // group by day
+    var groups={}; var order=[];
+    exs.forEach(function(e){ var d=(e.day&&e.day.trim())||"Unassigned"; if(!groups[d]){groups[d]=[];order.push(d);} groups[d].push(e); });
+    order.sort(function(a,b){ if(a==="Unassigned")return 1; if(b==="Unassigned")return -1; return a.localeCompare(b); });
+    var multi = order.length>1 || order[0]!=="Unassigned";
+    var opts;
+    if(multi){
+      opts = order.map(function(d){
+        return '<optgroup label="'+esc(d)+'">'+groups[d].map(function(e){
+          return '<option value="'+e.id+'"'+(e.id===ui.selectedId?' selected':'')+'>'+esc(e.name)+'</option>';
+        }).join("")+'</optgroup>';
+      }).join("");
+    } else {
+      opts = exs.map(function(e){ return '<option value="'+e.id+'"'+(e.id===ui.selectedId?' selected':'')+'>'+esc(e.name)+'</option>'; }).join("");
+    }
+    sel = '<span class="selwrap"><select class="lift" data-action="select">'+opts+'</select>'+
+      '<svg class="chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+  }
+  return '<div class="row mb16">'+sel+
+    '<button class="btn dash" data-action="add-toggle">+ New lift</button></div>';
+}
+
+function exerciseHTML(ex){
+  var sessions = sortedSessions(ex.id);
+  var M = METRICS[data.settings.metric];
+  var mw = data.settings.maWindow;
+  var win = mw===0 ? Infinity : mw;
+
+  // series + moving average
+  var vals = sessions.map(function(s){ return { id:s.id, date:s.date, value:M.fn(s,ex) }; });
+  var series = vals.map(function(v,i){
+    var start = win===Infinity ? 0 : Math.max(0, i-win+1);
+    var slice = vals.slice(start, i+1);
+    var avg = slice.reduce(function(a,x){return a+x.value;},0)/slice.length;
+    return { date:v.date, label:fmtDate(v.date), value:v.value, ma:avg };
+  });
+  var n=series.length;
+  var curMA = n ? series[n-1].ma : 0;
+  var backIdx = win===Infinity ? 0 : Math.max(0, n-1-mw);
+  var baseMA = n ? series[backIdx].ma : null;
+  var span = n ? (n-1-backIdx) : 0;
+  var delta = (baseMA!=null && span>0) ? curMA-baseMA : null;
+  var pct = (delta!=null && baseMA!==0) ? (delta/baseMA)*100 : null;
+  var trend = delta==null ? "new" : (delta>0.0001 ? "up" : (delta<-0.0001 ? "down" : "flat"));
+
+  var H = "";
+
+  // title
+  if(ui.renaming){
+    H += '<input id="rename-input" class="title-edit" value="'+esc(ex.name)+'" autofocus />';
+  } else {
+    H += '<button class="title-btn" data-action="rename-start">'+esc(ex.name)+
+      '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 13.5V16h2.5l7-7L11 6.5l-7 7zM12.5 5l2.5 2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+  }
+
+  // day tag
+  if(ui.editingDay){
+    var dl2 = dayList().map(function(d){return '<option value="'+esc(d)+'">';}).join("");
+    H += '<div class="mb12"><input id="day-input" class="ti" list="daydl2" value="'+esc(ex.day||"")+'" placeholder="Day (e.g. Push)" style="font-size:12px;padding:4px 8px;width:150px;" autofocus />'+
+      '<datalist id="daydl2">'+dl2+'</datalist></div>';
+  } else {
+    H += '<button class="daytag" data-action="day-start">'+
+      ( (ex.day&&ex.day.trim()) ? '<span class="chip">'+esc(ex.day)+'</span>' : '<span class="assign">+ assign day</span>' )+
+      '</button>';
+  }
+
+  // headline
+  var badgeCls = trend==="up" ? "badge up" : "badge neu";
+  var badgeTxt = trend==="up" ? "\u2191 climbing" : (trend==="down" ? "\u2193 dropped" : (trend==="flat" ? "\u2192 holding" : "\u2022 baseline"));
+  var deltaHTML = (delta!=null && trend!=="flat")
+    ? '<span class="delta mono">'+(delta>0?"+":"")+fmt(delta,M.round)+(pct!=null?(" ("+(pct>0?"+":"")+pct.toFixed(1)+"%)"):"")+" over last "+span+" session"+(span===1?"":"s")+'</span>'
+    : "";
+  var segMetric = METRIC_ORDER.map(function(k){
+    return '<button class="'+(data.settings.metric===k?"on":"")+'" data-action="metric" data-val="'+k+'">'+METRICS[k].short+'</button>';
+  }).join("");
+
+  H += '<div class="headline"><div>'+
+    '<span class="bignum mono">'+fmt(curMA,M.round)+'</span>'+(M.unit?'<span class="unit">'+M.unit+'</span>':'')+
+    '<div class="metaline"><span class="'+badgeCls+'">'+badgeTxt+'</span>'+deltaHTML+
+    '<span class="cap">\u00b7 running avg '+M.label.toLowerCase()+'</span></div>'+
+    '</div><div class="right-col"><div class="seg">'+segMetric+'</div>'+
+    '<button class="linkbtn" data-action="del-lift">delete lift</button></div></div>';
+
+  // progression settings
+  if(data.settings.metric==="progression"){
+    var step=ex.step||DEFAULT_STEP, ceil=ex.ceiling||DEFAULT_CEILING;
+    if(ui.progOpen){
+      H += '<div class="prog"><div class="row" style="align-items:flex-end;gap:16px;">'+
+        '<div><span class="label">Weight step (lb)</span><input id="prog-step" class="setin num28" inputmode="numeric" value="'+step+'" /></div>'+
+        '<div><span class="label">Rep ceiling</span><input id="prog-ceil" class="setin num28" inputmode="numeric" value="'+ceil+'" /></div>'+
+        '<button class="btn dark sm" data-action="prog-done">Done</button></div>'+
+        '<div class="note">Index reads your top set as <span class="mono">weight + (reps \u00f7 '+ceil+') \u00d7 '+step+'</span>. It rises as you add reps toward '+ceil+', then steps up when weight goes up \u2014 never dips at the handoff.</div></div>';
+    } else {
+      H += '<div class="progline"><span class="mono">progression: +'+step+' lb steps \u00b7 master at '+ceil+' reps</span>'+
+        '<button class="linkbtn" style="color:var(--accent-d);" data-action="prog-open">edit</button></div>';
+    }
+  }
+
+  // window control
+  H += '<div class="winrow"><span class="lbl">average window</span><div class="seg">'+
+    [3,5,8,0].map(function(w){ return '<button class="'+(mw===w?"on":"")+'" data-action="window" data-val="'+w+'">'+(w===0?"All":w)+'</button>'; }).join("")+
+    '</div></div>';
+
+  // chart
+  H += '<div class="card mb12"><div class="chartwrap">'+
+    ( n===0 ? '<p class="cap" style="text-align:center;padding:40px 0;">No sessions yet. Log one below to start the trend.</p>' : chartSVG(series,M) )+
+    '</div><div class="legend"><span><span class="sw" style="background:#d6d3d1;"></span>per session</span>'+
+    '<span><span class="sw" style="background:var(--accent);"></span>running avg</span></div></div>';
+
+  // suggestion
+  var sug = nextSuggestion(sessions, ex);
+  H += '<div class="sug'+(sug.kind==="jump"?" jump":"")+'"><span class="lab">Next session</span>'+
+    (sug.kind==="jump"?'<span class="jp">\u2191 add weight</span>':'')+
+    '<p>'+esc(sug.text)+'</p></div>';
+
+  // logger
+  H += loggerHTML(sessions, sug);
+
+  // recent activity
+  H += recentHTML(sessions, ex, M);
+
+  return H;
+}
+
+function setRowsHTML(prefix, sets){
+  return sets.map(function(s,i){
+    return '<div class="setgrid" style="margin-bottom:8px;">'+
+      '<span class="setnum mono">'+(i+1)+'</span>'+
+      '<input class="setin '+prefix+'-rep" inputmode="numeric" placeholder="reps" value="'+esc(s.reps)+'" />'+
+      '<input class="setin '+prefix+'-wt" inputmode="decimal" placeholder="lb" value="'+esc(s.weight)+'" />'+
+      '<button class="xbtn" data-action="'+prefix+'-rmset" data-idx="'+i+'">\u00d7</button>'+
+      '</div>';
+  }).join("");
+}
+
+function loggerHTML(sessions, sug){
+  if(!ui.logger){
+    return '<button class="btn dark block mb16" data-action="log-open">+ Log a session</button>';
+  }
+  return '<div class="card mb16">'+
+    '<div class="row" style="justify-content:space-between;margin-bottom:10px;">'+
+      '<span class="sectitle" style="margin:0;">Log session</span>'+
+      '<input id="log-date" type="date" class="ti" style="padding:6px 8px;font-size:13px;" value="'+esc(ui.logger.date)+'" /></div>'+
+    '<div class="setgrid mb6"><span class="h">set</span><span class="h">reps</span><span class="h">weight (lb)</span><span></span></div>'+
+    setRowsHTML("log", ui.logger.sets)+
+    '<button class="linkbtn" style="color:var(--accent-d);margin-top:2px;" data-action="log-addset">+ add set</button>'+
+    '<div class="row" style="margin-top:14px;gap:8px;">'+
+      '<button class="btn accent" style="flex:1;" data-action="log-save">Save session</button>'+
+      '<button class="btn ghost" data-action="log-cancel">Cancel</button></div>'+
+    '</div>';
+}
+
+function recentHTML(sessions, ex, M){
+  if(!sessions.length) return "";
+  var recent = sessions.slice().reverse().slice(0,8);
+  var rows = recent.map(function(s){
+    if(ui.editingId===s.id && ui.edit){
+      return '<div class="editbox" style="margin-bottom:8px;">'+
+        '<div class="row" style="justify-content:space-between;margin-bottom:8px;">'+
+          '<span class="cap" style="font-weight:700;color:#44403c;">Edit session</span>'+
+          '<input id="edit-date" type="date" class="ti" style="padding:5px 8px;font-size:12px;" value="'+esc(ui.edit.date)+'" /></div>'+
+        ui.edit.sets.map(function(x,i){
+          return '<div class="erow">'+
+            '<span class="setnum mono" style="width:20px;">'+(i+1)+'</span>'+
+            '<input class="setin edit-rep" inputmode="numeric" placeholder="reps" value="'+esc(x.reps)+'" />'+
+            '<span class="cap">\u00d7</span>'+
+            '<input class="setin edit-wt" inputmode="decimal" placeholder="lb" value="'+esc(x.weight)+'" />'+
+            '<button class="xbtn" data-action="edit-rmset" data-idx="'+i+'">\u00d7</button></div>';
+        }).join("")+
+        '<div class="row" style="justify-content:space-between;margin-top:6px;">'+
+          '<button class="linkbtn" style="color:var(--accent-d);" data-action="edit-addset">+ add set</button>'+
+          '<span class="row" style="gap:6px;"><button class="btn ghost sm" data-action="edit-cancel">Cancel</button>'+
+          '<button class="btn accent sm" data-action="edit-save">Save</button></span></div>'+
+        '</div>';
+    }
+    return '<div class="actrow" style="margin-bottom:8px;">'+
+      '<span class="date mono">'+fmtDate(s.date)+'</span>'+
+      '<span class="summary mono">'+esc(setsSummary(s.sets))+'</span>'+
+      '<span class="val mono">'+fmt(M.fn(s,ex),M.round)+'<span class="s">'+M.short+'</span></span>'+
+      '<span class="actbtns">'+
+        '<button class="ic" data-action="edit-start" data-id="'+s.id+'" aria-label="edit">'+
+          '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 13.5V16h2.5l7-7L11 6.5l-7 7zM12.5 5l2.5 2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
+        '<button class="ic" data-action="del-session" data-id="'+s.id+'" aria-label="delete" style="font-size:18px;line-height:1;">\u00d7</button>'+
+      '</span></div>';
+  }).join("");
+  return '<div><p class="sectitle">Recent activity</p>'+rows+'</div>';
+}
+
+/* ---------- event wiring ---------- */
+function wire(){
+  // change on select
+  var sel=document.querySelector('select[data-action="select"]');
+  if(sel) sel.addEventListener("change", function(){ ui.selectedId=this.value; render(); });
+
+  // rename input
+  var ri=document.getElementById("rename-input");
+  if(ri){
+    ri.focus();
+    ri.addEventListener("keydown",function(e){ if(e.key==="Enter")this.blur(); if(e.key==="Escape"){ui.renaming=false;render();} });
+    ri.addEventListener("blur",function(){ var ex=selectedEx(); if(ex&&this.value.trim()) updateExercise(ex.id,{name:this.value.trim()}); ui.renaming=false; render(); });
+  }
+  // day input
+  var di=document.getElementById("day-input");
+  if(di){
+    di.focus();
+    di.addEventListener("keydown",function(e){ if(e.key==="Enter")this.blur(); if(e.key==="Escape"){ui.editingDay=false;render();} });
+    di.addEventListener("blur",function(){ var ex=selectedEx(); if(ex) updateExercise(ex.id,{day:this.value.trim()}); ui.editingDay=false; render(); });
+  }
+  // new lift submit on enter
+  var nn=document.getElementById("new-name");
+  if(nn){ nn.focus(); [nn,document.getElementById("new-day")].forEach(function(inp){ if(inp) inp.addEventListener("keydown",function(e){
+    if(e.key==="Enter"){ addExercise(nn.value, (document.getElementById("new-day")||{}).value); render(); }
+    if(e.key==="Escape"){ ui.adding=false; render(); }
+  });});}
+  // progression step/ceiling
+  var ps=document.getElementById("prog-step"), pc=document.getElementById("prog-ceil");
+  if(ps) ps.addEventListener("change",function(){ var ex=selectedEx(); updateExercise(ex.id,{step:Math.max(1,num(this.value)||DEFAULT_STEP)}); render(); });
+  if(pc) pc.addEventListener("change",function(){ var ex=selectedEx(); updateExercise(ex.id,{ceiling:Math.max(1,num(this.value)||DEFAULT_CEILING)}); render(); });
+}
+
+/* central click handler */
+document.addEventListener("click", function(e){
+  var btn=e.target.closest("[data-action]"); if(!btn) return;
+  var a=btn.getAttribute("data-action");
+  var ex=selectedEx();
+
+  // capture any in-progress typing first
+  syncDrafts();
+
+  switch(a){
+    case "add-toggle": ui.adding=true; render(); break;
+    case "add-cancel": ui.adding=false; render(); break;
+    case "add-submit": addExercise(document.getElementById("new-name").value, document.getElementById("new-day").value); render(); break;
+    case "rename-start": ui.renaming=true; render(); break;
+    case "day-start": ui.editingDay=true; render(); break;
+    case "metric": data.settings.metric=btn.getAttribute("data-val"); save(); render(); break;
+    case "window": data.settings.maWindow=parseInt(btn.getAttribute("data-val"),10); save(); render(); break;
+    case "prog-open": ui.progOpen=true; render(); break;
+    case "prog-done": ui.progOpen=false; render(); break;
+    case "del-lift":
+      if(ex && confirm('Delete "'+ex.name+'" and all its logged sessions?')){ deleteExercise(ex.id); render(); }
+      break;
+
+    case "log-open":
+      var sug=nextSuggestion(sortedSessions(ex.id), ex);
+      var last=(data.sessions[ex.id]||[]).slice(-1)[0];
+      var count=(last&&last.sets.length)||1;
+      var hasT=(sug.weight!=null&&sug.reps!=null);
+      var rows=[]; for(var i=0;i<count;i++){ rows.push(hasT?{reps:String(sug.reps),weight:String(sug.weight)}:{reps:"",weight:""}); }
+      ui.logger={ date:todayISO(), sets:rows }; render(); break;
+    case "log-cancel": ui.logger=null; render(); break;
+    case "log-addset":
+      var lastr=ui.logger.sets[ui.logger.sets.length-1]||{reps:"",weight:""};
+      ui.logger.sets.push({reps:lastr.reps,weight:lastr.weight}); render(); break;
+    case "log-rmset":
+      if(ui.logger.sets.length>1) ui.logger.sets.splice(parseInt(btn.getAttribute("data-idx"),10),1);
+      render(); break;
+    case "log-save":
+      var cleaned=ui.logger.sets.filter(function(s){return num(s.reps)>0&&num(s.weight)>0;}).map(function(s){return {reps:num(s.reps),weight:num(s.weight)};});
+      if(cleaned.length){ addSession(ex.id,{id:uid(),date:ui.logger.date,sets:cleaned}); ui.logger=null; render(); }
+      break;
+
+    case "edit-start":
+      var sid=btn.getAttribute("data-id");
+      var ss=(data.sessions[ex.id]||[]).filter(function(s){return s.id===sid;})[0];
+      if(ss){ ui.editingId=sid; ui.edit={date:ss.date, sets:ss.sets.map(function(x){return {reps:x.reps,weight:x.weight};})}; render(); }
+      break;
+    case "edit-cancel": ui.editingId=null; ui.edit=null; render(); break;
+    case "edit-addset":
+      var le=ui.edit.sets[ui.edit.sets.length-1]||{reps:"",weight:""};
+      ui.edit.sets.push({reps:le.reps,weight:le.weight}); render(); break;
+    case "edit-rmset":
+      if(ui.edit.sets.length>1) ui.edit.sets.splice(parseInt(btn.getAttribute("data-idx"),10),1);
+      render(); break;
+    case "edit-save":
+      var ec=ui.edit.sets.filter(function(s){return num(s.reps)>0&&num(s.weight)>0;}).map(function(s){return {reps:num(s.reps),weight:num(s.weight)};});
+      if(ec.length){ updateSession(ex.id, ui.editingId, {date:ui.edit.date, sets:ec}); ui.editingId=null; ui.edit=null; render(); }
+      break;
+    case "del-session":
+      if(confirm("Delete this session?")){ deleteSession(ex.id, btn.getAttribute("data-id")); render(); }
+      break;
+
+    case "export-csv": download("lift-tracker.csv", buildCSV(), "text/csv"); break;
+    case "export-json": download("lift-tracker.json", JSON.stringify(data,null,2), "application/json"); break;
+    case "import": document.getElementById("importfile").click(); break;
+  }
+});
+
+document.getElementById("importfile").addEventListener("change", function(){
+  var f=this.files[0]; if(!f) return;
+  var r=new FileReader();
+  r.onload=function(){ importJSON(r.result); };
+  r.readAsText(f);
+  this.value="";
+});
+
+/* ---------- inline manifest (Android install) ---------- */
+(function(){
+  try{
+    var man={ name:"The Ramp", short_name:"The Ramp", display:"standalone",
+      background_color:"#f5f5f4", theme_color:"#f5f5f4", start_url:".",
+      icons:[{ src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231c1917'/%3E%3Cpath d='M30 130 L75 95 L110 70 L150 45' stroke='%23ea580c' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+        sizes:"180x180", type:"image/svg+xml" }] };
+    var blob=new Blob([JSON.stringify(man)],{type:"application/manifest+json"});
+    var link=document.createElement("link"); link.rel="manifest"; link.href=URL.createObjectURL(blob);
+    document.head.appendChild(link);
+  }catch(e){}
+})();
+
+/* ---------- boot ---------- */
+if(!storageOK()){
+  document.getElementById("storagewarn").innerHTML =
+    '<div class="banner">This browser is blocking local storage (often Private/Incognito mode). Your data won\u2019t persist here. Open in a normal tab or add to your home screen, and use Export to back up.</div>';
+}
+load();
+render();
+if(data.exercises.length) setSaveState("Loaded \u00b7 saved on this device", false);
+</script>
+</body>
+</html>
