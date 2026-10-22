@@ -188,7 +188,7 @@ function setSaveState(txt, err){
 
 /* ---------- helpers ---------- */
 function uid(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now()+"-"+Math.random().toString(36).slice(2)); }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function num(v){ var n = parseFloat(v); return isFinite(n) ? n : 0; }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]; }); }
 function fmt(n, d){ d = d||0; return Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}); }
